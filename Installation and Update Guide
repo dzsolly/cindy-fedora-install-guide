@@ -1,0 +1,435 @@
+# Cindy on Fedora Linux: Installation and Update Guide
+
+This guide documents my experience installing and updating [Cindy](https://cindy.app/) on **Fedora 44 Workstation with GNOME**.
+
+The process is divided into two parts:
+
+- **Part 1 – Initial Installation:** Installing and launching Cindy 0.1.120 by extracting the official Debian package.
+- **Part 2 – Update and Migration:** Moving from the manually extracted installation to Cindy 0.1.121 using the official managed per-user installer.
+
+> **Tested environment:** Fedora 44 Workstation, GNOME, x86_64  
+> **Initial version:** 0.1.120  
+> **Updated version:** 0.1.121  
+> **Installation method:** Managed per-user installation  
+> **Result:** Successfully launched on my system.
+
+This is a community-contributed installation report based on my own testing. It does not imply that Fedora is an officially supported or fully tested distribution.
+
+## Official Documentation
+
+Before proceeding, check Cindy's official Linux installation guide for the latest instructions:
+
+- [Cindy Linux installation guide](https://github.com/makecindy/cindy/blob/main/docs/linux.md)
+- [Cindy website](https://cindy.app/)
+
+The commands and checksum in this guide document the specific versions used during my testing. They should not be assumed to apply unchanged to future releases.
+
+---
+
+# Part 1 – Initial Installation (Cindy 0.1.120)
+
+The initial installation used the official Cindy Debian package. Since Fedora does not use Debian packages as its native package format, I extracted the package manually instead of installing it system-wide.
+
+## 1. Install dpkg
+
+First, install `dpkg`:
+
+```bash
+sudo dnf install dpkg
+```
+
+## 2. Download and Extract the Debian Package
+
+I used Cindy 0.1.120 for the initial installation.
+
+Create a directory for the extracted files:
+
+```bash
+mkdir -p ~/Downloads/cindy-inspect
+```
+
+Extract the package:
+
+```bash
+dpkg-deb -x ~/Downloads/cindy-0.1.120-amd64.deb \
+  ~/Downloads/cindy-inspect
+```
+
+The application executable was located at:
+
+```text
+~/Downloads/cindy-inspect/usr/lib/cindy/Cindy
+```
+
+## 3. Launch Cindy Manually
+
+Navigate to the application directory:
+
+```bash
+cd ~/Downloads/cindy-inspect/usr/lib/cindy
+```
+
+Launch Cindy:
+
+```bash
+./Cindy
+```
+
+**Result:** Cindy 0.1.120 launched successfully on Fedora 44 Workstation.
+
+This was a manual extraction, not a managed installation. The application could run, but its built-in updater later reported that this installation could not update itself.
+
+## 4. Create a GNOME Application Launcher
+
+To make Cindy accessible from the GNOME application menu, I created a custom desktop entry.
+
+Create the required directories:
+
+```bash
+mkdir -p ~/.local/share/applications
+mkdir -p ~/.local/share/icons
+```
+
+Copy the application icon:
+
+```bash
+cp ~/Downloads/cindy-inspect/usr/share/pixmaps/cindy.png \
+  ~/.local/share/icons/cindy.png
+```
+
+Create the desktop entry:
+
+```bash
+cat > ~/.local/share/applications/cindy.desktop <<EOF
+[Desktop Entry]
+Name=Cindy
+Comment=Cindy desktop client
+Exec=$HOME/Downloads/cindy-inspect/usr/lib/cindy/Cindy %U
+Icon=$HOME/.local/share/icons/cindy.png
+Type=Application
+Categories=Development;
+Terminal=false
+StartupNotify=true
+EOF
+```
+
+Update the desktop application database:
+
+```bash
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+```
+
+Cindy was now available from the GNOME application menu.
+
+### Initial Installation Result
+
+At this point:
+
+- Cindy 0.1.120 was running on Fedora 44.
+- The application was extracted manually from the Debian package.
+- A custom GNOME launcher had been created.
+- The installation was not managed by Cindy's user installer.
+
+---
+
+# Part 2 – Updating and Migrating (Cindy 0.1.120 → 0.1.121)
+
+After using the initial installation, I attempted to update Cindy through its built-in updater.
+
+The application displayed the following message:
+
+> This installation cannot update itself. Use your package manager, or follow the Linux user-install guide.
+
+The message also explained that a managed installation might require missing tools or restored write access.
+
+Instead of continuing with the manually extracted application, I decided to migrate to Cindy's bundled managed user-installation method.
+
+## 5. Inspect the Built-in Linux Installation Scripts
+
+The original Debian package contained Cindy's own Linux installation scripts:
+
+```text
+usr/lib/cindy/resources/linux/install-user.sh
+usr/lib/cindy/resources/linux/register-desktop.sh
+```
+
+These scripts were also included in the newer 0.1.121 package.
+
+## 6. Install the Required Fedora Dependency
+
+The user installer required `bsdtar`, which was not initially available on my system.
+
+I checked which Fedora package provided it:
+
+```bash
+sudo dnf provides '*/bsdtar'
+```
+
+Then installed it:
+
+```bash
+sudo dnf install bsdtar
+```
+
+I also checked for the other required utilities:
+
+```bash
+for x in bsdtar sha256sum stat dd mktemp realpath flock find readlink mv ln desktop-file-validate update-desktop-database xdg-mime; do
+    command -v "$x" || echo "MISSING: $x"
+done
+```
+
+All required utilities were available after installing `bsdtar`.
+
+## 7. Check the Official Update Manifest
+
+I queried Cindy's official Linux update manifest:
+
+```bash
+curl -fsSL https://hotfix.cindy.app/cindy/manifest-linux-x64.json \
+| python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps({"version":d["app"]["version"],"installer":d["app"]["installer"]},indent=2))'
+```
+
+The manifest identified the following release:
+
+```text
+Version: 0.1.121
+
+Installer:
+app/linux-x64/cindy-0.1.121-amd64.deb
+
+SHA-256:
+b756663c3f30d6cf8a75d4d8ea38336842689a504b682d62c6dd3d6ba01e0663
+
+Size:
+199686896 bytes
+```
+
+The manifest provided the download information and checksum for the new release.
+
+## 8. Download Cindy 0.1.121
+
+Download the new Debian package:
+
+```bash
+cd ~/Downloads
+
+curl -fL \
+  https://hotfix.cindy.app/cindy/app/linux-x64/cindy-0.1.121-amd64.deb \
+  -o cindy-0.1.121-amd64.deb
+```
+
+## 9. Verify the Downloaded Package
+
+Before running the installer, I checked the downloaded package's SHA-256 checksum:
+
+```bash
+sha256sum cindy-0.1.121-amd64.deb
+```
+
+Expected checksum:
+
+```text
+b756663c3f30d6cf8a75d4d8ea38336842689a504b682d62c6dd3d6ba01e0663
+```
+
+**The calculated SHA-256 checksum matched the value published in Cindy's official update manifest.**
+
+Always verify a package against the trusted checksum for that exact release. Do not reuse an old checksum for a newer version.
+
+## 10. Extract the Verified Package
+
+I extracted the verified package to inspect the installation scripts:
+
+```bash
+mkdir -p ~/Downloads/cindy-0.1.121-inspect
+
+dpkg-deb -x ~/Downloads/cindy-0.1.121-amd64.deb \
+  ~/Downloads/cindy-0.1.121-inspect
+```
+
+Check the bundled Linux installation scripts:
+
+```bash
+ls -l ~/Downloads/cindy-0.1.121-inspect/usr/lib/cindy/resources/linux/
+```
+
+The package contained:
+
+```text
+install-omarchy.sh
+install-user.sh
+register-desktop.sh
+```
+
+The build information confirmed the version and architecture:
+
+```bash
+cat ~/Downloads/cindy-0.1.121-inspect/usr/lib/cindy/resources/linux-build-info
+```
+
+Output:
+
+```text
+cindy-linux-v1
+0.1.121
+x64
+global
+Cindy
+```
+
+For this Fedora installation, I used `install-user.sh`, not the Omarchy-specific installer.
+
+## 11. Back Up Existing User Data
+
+Before migrating, close Cindy completely.
+
+It is recommended to back up the existing configuration and user data before proceeding.
+
+On my system, the relevant locations included:
+
+```text
+~/.config/CindyGlobal
+~/.config/Cindy
+~/.local/share/Cindy
+```
+
+An example backup command:
+
+```bash
+BACKUP="$HOME/Downloads/cindy-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
+
+tar -czf "$BACKUP" \
+  -C "$HOME" \
+  .config/CindyGlobal \
+  .config/Cindy \
+  .local/share/Cindy
+
+echo "Backup created at: $BACKUP"
+ls -lh "$BACKUP"
+```
+
+Your actual profile locations may differ. Check which directories exist before using the command.
+
+Keep the backup until you have verified the new installation and your existing data.
+
+## 12. Install Cindy Using the Official User Installer
+
+I used the `install-user.sh` script bundled with the verified 0.1.121 package.
+
+I selected a separate installation directory to keep the original manually extracted installation untouched:
+
+```bash
+bash ~/Downloads/cindy-0.1.121-inspect/usr/lib/cindy/resources/linux/install-user.sh \
+  --install ~/Downloads/cindy-0.1.121-amd64.deb \
+  b756663c3f30d6cf8a75d4d8ea38336842689a504b682d62c6dd3d6ba01e0663 \
+  "$HOME/.local/opt/cindy-managed"
+```
+
+The installer completed successfully:
+
+```text
+Installed Cindy 0.1.121.
+Start with: /home/lporcsin/.local/opt/cindy-managed/launch
+```
+
+The new managed installation was created under:
+
+```text
+~/.local/opt/cindy-managed
+```
+
+**Important:**
+
+- Run the user installer as your regular desktop user.
+- Do not use `sudo` for this installation.
+- Do not run the old and new installations simultaneously against the same user profile.
+- Keep the original installation until the new one has been verified.
+
+## 13. Register the New GNOME Application Launcher
+
+The new installation included its own desktop-registration script.
+
+I registered Cindy in GNOME with:
+
+```bash
+bash "$HOME/.local/opt/cindy-managed/current/resources/linux/register-desktop.sh" \
+  "$HOME/.local/opt/cindy-managed"
+```
+
+Then launched the managed installation:
+
+```bash
+"$HOME/.local/opt/cindy-managed/launch"
+```
+
+**Result:** Cindy 0.1.121 launched successfully from the managed user installation.
+
+## 14. Remove the Duplicate GNOME Launcher
+
+After registering the new installation, GNOME displayed two Cindy icons:
+
+- **Cindy** – the old manually created launcher pointing to the extracted application.
+- **Cindy (User)** – the new launcher registered by Cindy's managed user installation.
+
+The duplicate appeared because the old custom desktop entry was still present.
+
+After verifying the new installation, I removed the obsolete desktop entry:
+
+```bash
+rm ~/.local/share/applications/cindy.desktop
+```
+
+This removes only the old launcher file, not the application profile or user data.
+
+I kept the new **Cindy (User)** launcher.
+
+If the old icon remains visible temporarily, refresh the GNOME session or log out and back in.
+
+---
+
+# Notes and Troubleshooting
+
+## Why did the original installation not update?
+
+The initial installation was manually extracted from a Debian package. Cindy's built-in updater reported that this installation method could not update itself.
+
+Migrating to the managed user installation provided the installation structure expected by Cindy's user installer.
+
+## Does this mean automatic updates were tested?
+
+No. The migration to version 0.1.121 was performed manually using the official update manifest, a verified Debian package, and Cindy's bundled `install-user.sh` script.
+
+The subsequent automatic update mechanism was not separately tested as part of this guide.
+
+## Why was `bsdtar` needed?
+
+The bundled user installer required `bsdtar`, which was missing from the initial Fedora installation. Installing the Fedora package that provides it resolved this prerequisite.
+
+## Why did GNOME show two Cindy icons?
+
+The old manually created desktop entry remained after the new managed installation registered its own launcher. Removing the obsolete `.desktop` file resolved the duplicate.
+
+## Protect your profile and credentials
+
+Before migrating:
+
+- Close Cindy completely.
+- Back up your existing configuration and user data.
+- Avoid running two installations simultaneously against the same profile.
+- Keep the old installation and backup until the new one has been verified.
+- Do not delete Cindy's profile, keyring data, or stored credentials as part of routine launcher cleanup.
+
+---
+
+# Final Result
+
+I successfully installed and launched Cindy 0.1.120 on Fedora 44 Workstation by extracting the official Debian package.
+
+When the built-in updater rejected the manually extracted installation, I migrated to Cindy 0.1.121 using the official managed per-user installer bundled with the verified package.
+
+The new installation launched successfully and was registered in the GNOME application menu. I also resolved the duplicate launcher caused by my earlier manual setup.
+
+This guide documents what worked on my Fedora system. Other Fedora configurations and future Cindy releases may require different steps.
+
+For the latest installation instructions, always consult the [official Cindy Linux installation guide](https://github.com/makecindy/cindy/blob/main/docs/linux.md).
